@@ -9,4 +9,8 @@
     <files-path
         name="nuvio_downloads"
         path="downloads/" />
+    <!-- Fork: share files from the public Movies/Nuvio folder with external players. -->
+    <external-path
+        name="nuvio_movies"
+        path="Movies/Nuvio/" />
 </paths>

@@ -94,6 +94,11 @@ internal actual object DownloadsPlatformDownloader {
                 ?.name
                 ?.takeIf { it.isNotBlank() }
             ?: return null
+        // Fork: new downloads live in the public folder; legacy private
+        // folder stays as a fallback so pre-existing entries keep resolving.
+        NuvioPublicDownloads.directory()?.let { publicDir ->
+            File(publicDir, fileName).takeIf { it.exists() }?.toURI()?.toString()?.let { return it }
+        }
         val downloadsDir = File(context.filesDir, "downloads")
         val localFile = File(downloadsDir, fileName)
         return localFile.takeIf { it.exists() }?.toURI()?.toString()
@@ -101,7 +106,9 @@ internal actual object DownloadsPlatformDownloader {
 
     actual fun openDownloadsDirectory(): Boolean {
         val context = appContext ?: return false
-        val downloadsDir = File(context.filesDir, "downloads").apply { mkdirs() }
+        // Fork: open the public folder when available, else legacy private one.
+        val downloadsDir = NuvioPublicDownloads.directory()
+            ?: File(context.filesDir, "downloads").apply { mkdirs() }
         val uri = runCatching {
             FileProvider.getUriForFile(
                 context,

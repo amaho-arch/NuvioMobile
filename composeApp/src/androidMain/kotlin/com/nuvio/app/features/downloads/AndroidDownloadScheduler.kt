@@ -36,13 +36,30 @@ import okhttp3.ConnectionPool
 
 internal class AndroidDownloadScheduler(val context: Context) {
     val store = AndroidDownloadStore(File(context.filesDir, "download-transfers"))
-    val directory = File(context.filesDir, "downloads")
+
+    /**
+     * Fork: completed files go to the public Movies/Nuvio folder so they are
+     * visible to file managers, MTP and external players. Falls back to the
+     * legacy private folder when public storage is unavailable, so old
+     * entries and permission-less runs keep working. Computed on each access
+     * so granting "All files access" takes effect without an app restart.
+     */
+    val directory: File
+        get() = NuvioPublicDownloads.directory()
+            ?: File(context.filesDir, "downloads")
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun enqueue(item: DownloadItem): AndroidDownloadTransfer {
         val previous = store.get(item.fileName)
         val transfer = store.begin(item)
+        if (NuvioPublicDownloads.directory() == null && !NuvioPublicDownloads.hasAccess()) {
+            // Fork: public folder chosen but not yet granted. Point the user at
+            // Settings once; the visible error tells them to tap retry after.
+            NuvioPublicDownloads.openAccessSettings(context)
+            fail(transfer, IOException("Grant \"All files access\", then retry the download"))
+            return store.get(item.fileName) ?: transfer
+        }
         val existing = previous?.generation == transfer.generation
         if (existing && Build.VERSION.SDK_INT >= 34) return transfer
         try {
