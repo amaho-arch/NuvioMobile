@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -66,6 +67,7 @@ import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.features.downloads.DownloadsRepository
+import com.nuvio.app.features.downloads.ExternalDownloaderPlatform
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -154,6 +156,8 @@ fun StreamsScreen(
     val clipboardManager = LocalClipboardManager.current
     val streamLinkCopiedText = stringResource(Res.string.streams_link_copied)
     val noDirectStreamLinkText = stringResource(Res.string.streams_no_direct_link)
+    val sendDownloaderSentText = stringResource(Res.string.streams_send_downloader_sent)
+    val sendDownloaderFailedText = stringResource(Res.string.streams_send_downloader_failed)
     var streamActionsTarget by remember(videoId) { mutableStateOf<StreamItem?>(null) }
     val downloadScope = rememberCoroutineScope()
     var preferredFilterApplied by remember(videoId) { mutableStateOf(false) }
@@ -385,6 +389,39 @@ fun StreamsScreen(
                         stream = stream,
                     )
                     NuvioToastController.show(result.toastMessage())
+                }
+            },
+            // Fork: hand the (possibly debrid-resolved) URL to Gopeed/ADM.
+            onSendToDownloader = { stream ->
+                fun send(url: String?) {
+                    if (url.isNullOrBlank()) {
+                        NuvioToastController.show(noDirectStreamLinkText)
+                        return
+                    }
+                    val sent = ExternalDownloaderPlatform.sendDownloadUrl(url, title)
+                    NuvioToastController.show(if (sent) sendDownloaderSentText else sendDownloaderFailedText)
+                }
+                if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {
+                    downloadScope.launch {
+                        val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(
+                            stream = stream,
+                            season = seasonNumber,
+                            episode = episodeNumber,
+                        )
+                        when (resolved) {
+                            is DirectDebridPlayableResult.Success -> {
+                                send(resolved.stream.playableDirectUrl)
+                            }
+                            else -> {
+                                val message = resolved.toastMessage()
+                                if (message != null) {
+                                    NuvioToastController.show(message)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    send(stream.playableDirectUrl ?: stream.externalOpenUrl)
                 }
             },
             onOpen = { stream, openExternally ->
@@ -967,6 +1004,7 @@ private fun StreamActionsSheet(
     onDismiss: () -> Unit,
     onCopyLink: (StreamItem) -> Unit,
     onDownload: (StreamItem) -> Unit,
+    onSendToDownloader: (StreamItem) -> Unit,
     onOpen: (StreamItem, openExternally: Boolean) -> Unit,
 ) {
     if (stream == null) return
@@ -1051,6 +1089,19 @@ private fun StreamActionsSheet(
                     }
                 },
             )
+            // Fork: only when a download-manager app (Gopeed/ADM) is installed.
+            if (ExternalDownloaderPlatform.canHandle()) {
+                NuvioBottomSheetActionRow(
+                    icon = Icons.Rounded.Share,
+                    title = ExternalDownloaderPlatform.targetLabel(),
+                    onClick = {
+                        onSendToDownloader(stream)
+                        coroutineScope.launch {
+                            dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
+                        }
+                    },
+                )
+            }
         }
     }
 }

@@ -8,6 +8,12 @@
     <!-- Fork: public download folder (/sdcard/Movies/Nuvio). Sideload-only, not for Play. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
+    <!-- Fork: detect Gopeed/ADM for the "send to downloader" handoff. -->
+    <queries>
+        <package android:name="com.gopeed.gopeed" />
+        <package android:name="com.dv.adm" />
+    </queries>
+
     <application>
         <service
             android:name="com.nuvio.app.features.downloads.DownloadsTransferJobService"
