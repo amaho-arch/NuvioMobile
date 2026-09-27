@@ -177,6 +177,15 @@ internal actual object DownloadsLiveStatusPlatform {
                         ),
                     )
             }
+
+            // Fork: external stubs show a quiet notification with no engine actions.
+            DownloadStatus.External -> {
+                notificationBuilder
+                    .setOngoing(false)
+                    .setAutoCancel(false)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setProgress(0, 0, false)
+            }
         }
 
         return notificationBuilder.build()
@@ -198,6 +207,8 @@ internal actual object DownloadsLiveStatusPlatform {
             DownloadStatus.Paused -> runBlocking { getString(Res.string.downloads_live_paused, detail) }
             DownloadStatus.Failed -> item.errorMessage?.takeIf { it.isNotBlank() } ?: runBlocking { getString(Res.string.downloads_live_failed) }
             DownloadStatus.Completed -> runBlocking { getString(Res.string.downloads_live_completed) }
+            // Fork: external stubs (quiet by default, see filter above).
+            DownloadStatus.External -> runBlocking { getString(Res.string.downloads_live_external) }
         }
     }
 

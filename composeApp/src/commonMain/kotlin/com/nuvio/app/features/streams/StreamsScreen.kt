@@ -410,6 +410,29 @@ fun StreamsScreen(
                         sourceUrl = url,
                     )
                     val sent = ExternalDownloaderPlatform.sendDownloadUrl(url, title, fileName, relativeDir)
+                    if (sent) {
+                        // Fork: tracked stub — becomes playable the moment
+                        // the expected file appears on disk.
+                        DownloadsRepository.trackExternalDownload(
+                            contentType = type,
+                            videoId = videoId,
+                            parentMetaId = parentMetaId,
+                            parentMetaType = parentMetaType,
+                            title = title,
+                            logo = logo,
+                            poster = poster,
+                            background = background,
+                            seasonNumber = seasonNumber,
+                            episodeNumber = episodeNumber,
+                            episodeTitle = episodeTitle,
+                            episodeThumbnail = episodeThumbnail,
+                            streamTitle = stream.streamLabel,
+                            providerName = stream.addonName,
+                            sourceUrl = url,
+                            relativeDir = relativeDir,
+                            fileName = fileName,
+                        )
+                    }
                     NuvioToastController.show(if (sent) sendDownloaderSentText else sendDownloaderFailedText)
                 }
                 if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {

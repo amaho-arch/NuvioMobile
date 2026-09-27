@@ -635,6 +635,9 @@
     <string name="downloads_status_completed">Completed • %1$s</string>
     <string name="downloads_status_downloading">Downloading • %1$s</string>
     <string name="downloads_status_failed">Failed</string>
+    <!-- Fork: external download-manager entries -->
+    <string name="downloads_status_external_ready">Ready to play</string>
+    <string name="downloads_status_external_waiting">Waiting in downloader</string>
     <string name="downloads_status_paused">Paused • %1$s</string>
     <string name="episodes_cd_watched">Watched</string>
     <string name="episodes_season">Season %1$d</string>
@@ -1720,6 +1723,8 @@
     <string name="downloads_live_downloading">Downloading %1$s • %2$s</string>
     <string name="downloads_live_downloading_with_total">Downloading %1$s • %2$s / %3$s</string>
     <string name="downloads_live_failed">Download failed</string>
+    <!-- Fork: external download-manager entries -->
+    <string name="downloads_live_external">Waiting in downloader</string>
     <string name="downloads_live_paused">Paused %1$s</string>
     <string name="library_remove_confirm">Remove</string>
     <string name="library_remove_from_list_message">Remove %1$s from %2$s?</string>

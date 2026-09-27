@@ -17,6 +17,12 @@ enum class DownloadStatus {
     Paused,
     Completed,
     Failed,
+    /**
+     * Fork: file lives with an external download manager (Gopeed/ADM).
+     * Nuvio never drives the transfer; the entry becomes playable the
+     * moment the expected file appears on disk.
+     */
+    External,
 }
 
 @Serializable
@@ -56,7 +62,7 @@ data class DownloadItem(
         get() = seasonNumber != null && episodeNumber != null
 
     val isPlayable: Boolean
-        get() = status == DownloadStatus.Completed && !localFileUri.isNullOrBlank()
+        get() = (status == DownloadStatus.Completed || status == DownloadStatus.External) && !localFileUri.isNullOrBlank()
 
     val displaySubtitle: String
         get() = episodeTitle.orEmpty()

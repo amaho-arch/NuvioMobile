@@ -67,6 +67,8 @@ internal actual object DownloadsLiveStatusPlatform {
         DownloadStatus.Paused -> 1
         DownloadStatus.Failed -> 2
         DownloadStatus.Completed -> 3
+        // Fork: Android-only status; lowest priority, never produced on iOS.
+        DownloadStatus.External -> 4
     }
 }
 

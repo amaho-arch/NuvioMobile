@@ -238,7 +238,7 @@ internal class AndroidDownloadScheduler(val context: Context) {
 
     fun fail(transfer: AndroidDownloadTransfer, error: Exception) {
         updateActive(transfer) {
-            it.copy(item = it.item.copy(status = DownloadStatus.Failed, errorMessage = error.message ?: "Download failed"))
+            it.copy(item = it.item.copy(status = DownloadStatus.Failed, errorMessage = friendlyDownloadError(error)))
         }
     }
 
@@ -271,6 +271,34 @@ internal fun shouldRetryAndroidDownload(error: Exception, retries: Int): Boolean
         is IOException -> true
         else -> false
     }
+
+/**
+ * Fork: loud, plain-word failure reasons. A code the user can quote beats
+ * "Download failed" every time.
+ */
+internal fun friendlyDownloadError(error: Exception): String {
+    if (error is DownloadHttpException) {
+        return when (error.statusCode) {
+            429 -> "HTTP 429 — the host is throttling this link. Wait a while, then retry."
+            403 -> "HTTP 403 — the host refused access. The link may need a refresh."
+            404, 410 -> "HTTP 404 — the file is gone from the host."
+            408 -> "HTTP 408 — the host timed out. Retry."
+            in 500..599 -> "HTTP ${error.statusCode} — host error. Wait a bit, then retry."
+            else -> "HTTP ${error.statusCode} — download failed."
+        }
+    }
+    val message = error.message.orEmpty()
+    return when {
+        message.contains("timeout", ignoreCase = true) || message.contains("timed out", ignoreCase = true) ->
+            "Network timeout — the host stopped answering. Retry."
+        message.contains("Unable to resolve host", ignoreCase = true) || message.contains("UnknownHost", ignoreCase = true) ->
+            "DNS failure — check your connection, then retry."
+        message.contains("Connection refused", ignoreCase = true) || message.contains("failed to connect", ignoreCase = true) ->
+            "Could not reach the host. Retry."
+        message.isNotBlank() -> message
+        else -> "Download failed."
+    }
+}
 
 /** Fork: <video>.nuvio.json next to the file — tidy metadata, machine-readable. */
 internal fun writeNuvioSidecar(videoFile: File, item: DownloadItem) {

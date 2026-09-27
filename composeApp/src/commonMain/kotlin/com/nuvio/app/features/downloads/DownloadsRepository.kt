@@ -87,7 +87,7 @@ object DownloadsRepository {
 
     fun playableLocalFileUri(item: DownloadItem): String? {
         ensureLoaded()
-        if (item.status != DownloadStatus.Completed) return null
+        if (item.status != DownloadStatus.Completed && item.status != DownloadStatus.External) return null
         val resolvedUri = DownloadsPlatformDownloader.resolveLocalFileUri(
             localFileUri = item.localFileUri,
             destinationFileName = item.fileName,
@@ -207,6 +207,83 @@ object DownloadsRepository {
         } else {
             DownloadEnqueueResult.Started
         }
+    }
+
+    /**
+     * Fork: track a file handed to an external download manager. The entry
+     * never touches the built-in engine; it becomes playable the moment the
+     * expected file appears (see [hasPlayableLocalFile]). Nothing on disk is
+     * ever deleted or moved by this call.
+     */
+    fun trackExternalDownload(
+        contentType: String,
+        videoId: String,
+        parentMetaId: String,
+        parentMetaType: String,
+        title: String,
+        logo: String?,
+        poster: String?,
+        background: String?,
+        seasonNumber: Int?,
+        episodeNumber: Int?,
+        episodeTitle: String?,
+        episodeThumbnail: String?,
+        streamTitle: String,
+        providerName: String,
+        sourceUrl: String,
+        relativeDir: String,
+        fileName: String,
+    ) {
+        ensureLoaded()
+        val now = DownloadsClock.nowEpochMs()
+        val logicalKey = buildLogicalKey(
+            parentMetaId = parentMetaId,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+        )
+        val currentItems = _uiState.value.items.toMutableList()
+        // Drop a previous external stub for the same content; built-in
+        // entries are left alone (first playable wins at playback time).
+        currentItems.removeAll {
+            it.logicalContentKey == logicalKey && it.status == DownloadStatus.External
+        }
+        val cleanDir = relativeDir.trim().trim('/')
+        val cleanName = fileName.trim().trim('/')
+        val item = DownloadItem(
+            id = nextDownloadId(now),
+            contentType = contentType,
+            parentMetaId = parentMetaId,
+            parentMetaType = parentMetaType,
+            videoId = videoId,
+            title = title,
+            logo = logo,
+            poster = poster,
+            background = background,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+            episodeTitle = episodeTitle,
+            episodeThumbnail = episodeThumbnail,
+            streamTitle = streamTitle,
+            streamSubtitle = null,
+            providerName = providerName,
+            providerAddonId = null,
+            sourceUrl = sourceUrl,
+            sourceHeaders = emptyMap(),
+            sourceResponseHeaders = emptyMap(),
+            subtitleRequests = emptyList(),
+            sourceSubtitles = emptyList(),
+            localFileUri = null,
+            fileName = if (cleanDir.isBlank()) cleanName else "$cleanDir/$cleanName",
+            status = DownloadStatus.External,
+            downloadedBytes = 0L,
+            totalBytes = null,
+            errorMessage = null,
+            createdAtEpochMs = now,
+            updatedAtEpochMs = now,
+        )
+        currentItems.add(0, item)
+        publish(currentItems)
+        persist()
     }
 
     fun pauseDownload(downloadId: String) {
@@ -426,7 +503,7 @@ object DownloadsRepository {
     }
 
     private fun normalizeCompletedLocalFileUri(item: DownloadItem): DownloadItem {
-        if (item.status != DownloadStatus.Completed) return item
+        if (item.status != DownloadStatus.Completed && item.status != DownloadStatus.External) return item
         val resolvedUri = DownloadsPlatformDownloader.resolveLocalFileUri(
             localFileUri = item.localFileUri,
             destinationFileName = item.fileName,
@@ -438,8 +515,8 @@ object DownloadsRepository {
         }
     }
 
-    private fun DownloadItem.hasPlayableLocalFile(): Boolean =
-        status == DownloadStatus.Completed &&
+    internal fun DownloadItem.hasPlayableLocalFile(): Boolean =
+        (status == DownloadStatus.Completed || status == DownloadStatus.External) &&
             DownloadsPlatformDownloader.resolveLocalFileUri(
                 localFileUri = localFileUri,
                 destinationFileName = fileName,

@@ -355,7 +355,11 @@ private fun DownloadRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clickable(enabled = item.isPlayable, onClick = onOpen),
+            // Fork: external stubs become tappable the moment the file lands.
+            .clickable(
+                enabled = item.isPlayable || item.isExternallyReady(),
+                onClick = onOpen,
+            ),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
@@ -427,6 +431,24 @@ private fun DownloadRow(
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = stringResource(Res.string.action_play),
+                                )
+                            }
+                        }
+                        // Fork: landed external file plays; otherwise a static
+                        // waiting mark (no engine actions apply to these).
+                        DownloadStatus.External -> {
+                            if (item.isExternallyReady()) {
+                                IconButton(onClick = onOpen) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = stringResource(Res.string.action_play),
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -513,8 +535,18 @@ private fun statusText(item: DownloadItem): String {
             formatBytes(item.totalBytes ?: item.downloadedBytes),
         )
         DownloadStatus.Failed -> item.errorMessage ?: stringResource(Res.string.downloads_status_failed)
+        // Fork: waiting on the external manager vs file landed.
+        DownloadStatus.External -> if (item.isExternallyReady()) {
+            stringResource(Res.string.downloads_status_external_ready)
+        } else {
+            stringResource(Res.string.downloads_status_external_waiting)
+        }
     }
 }
+
+/** Fork: an external stub whose expected file already exists on disk. */
+private fun DownloadItem.isExternallyReady(): Boolean =
+    status == DownloadStatus.External && with(DownloadsRepository) { hasPlayableLocalFile() }
 
 private fun formatBytes(bytes: Long): String {
     if (bytes <= 0L) return "0 ${localizedByteUnit("B")}"
