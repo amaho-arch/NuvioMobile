@@ -55,6 +55,8 @@ internal actual object DownloadsPlatformDownloader {
                         DownloadStatus.Completed -> onSuccess(checkNotNull(item.localFileUri), item.totalBytes)
                         DownloadStatus.Failed -> onFailure(item.errorMessage ?: "Download failed")
                         DownloadStatus.Paused -> onPaused()
+                        // Fork: external stubs never flow through the engine.
+                        DownloadStatus.External -> onPaused()
                     }
                     item.status == DownloadStatus.Downloading
                 }.collect()
