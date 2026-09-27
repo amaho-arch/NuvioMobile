@@ -34,12 +34,25 @@ jobs:
       - name: Prepare runtime properties
         env:
           LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
+          NUVIO_DEBUG_KEYSTORE_BASE64: ${{ secrets.NUVIO_DEBUG_KEYSTORE_BASE64 }}
+          NUVIO_DEBUG_STORE_PASSWORD: ${{ secrets.NUVIO_DEBUG_STORE_PASSWORD }}
+          NUVIO_DEBUG_KEY_ALIAS: ${{ secrets.NUVIO_DEBUG_KEY_ALIAS }}
         run: |
           if [ -n "$LOCAL_PROPERTIES_BASE64" ]; then
             printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
             sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_STORE_FILE)[[:space:]]*=/d' local.properties
           else
             touch local.properties
+          fi
+          # Fork: pinned debug keystore so consecutive cloud builds
+          # update over each other instead of forcing reinstalls.
+          if [ -n "$NUVIO_DEBUG_KEYSTORE_BASE64" ] && [ -n "$NUVIO_DEBUG_STORE_PASSWORD" ] && [ -n "$NUVIO_DEBUG_KEY_ALIAS" ]; then
+            printf '%s' "$NUVIO_DEBUG_KEYSTORE_BASE64" | base64 --decode > androidApp/fork-debug.keystore
+            {
+              echo "NUVIO_DEBUG_STORE_FILE=androidApp/fork-debug.keystore"
+              echo "NUVIO_DEBUG_STORE_PASSWORD=$NUVIO_DEBUG_STORE_PASSWORD"
+              echo "NUVIO_DEBUG_KEY_ALIAS=$NUVIO_DEBUG_KEY_ALIAS"
+            } >> local.properties
           fi
 
       - name: Build fullDebug APK

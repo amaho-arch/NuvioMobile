@@ -92,7 +92,10 @@ internal actual object ExternalDownloaderPlatform {
     private fun sendGenericUrl(context: Context, trimmed: String, title: String?): Boolean {
         val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return false
         val target = installedPackage()
-        val viewIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+        // Fork: Gopeed's https filter declares a MIME type, so the intent
+        // must carry one too or package-scoped resolution misses.
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "*/*")
             addCategory(Intent.CATEGORY_DEFAULT)
             // Fork: Gopeed's https filter requires BROWSABLE; without it the
             // package-scoped lookup misses and we fall into a chooser.
@@ -102,10 +105,13 @@ internal actual object ExternalDownloaderPlatform {
             if (!title.isNullOrBlank()) putExtra(Intent.EXTRA_TITLE, title)
         }
         return try {
+            forkToast(context, "Opening ${targetLabelFor(target)}…")
             context.startActivity(viewIntent)
             true
         } catch (_: ActivityNotFoundException) {
             if (target == null) return false
+            // Fork: loud fallback so it's visible which road was taken.
+            forkToast(context, "Direct open failed — pick ${targetLabelFor(target)} from the list")
             // Target present but rejected VIEW: fall back to a generic share.
             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
@@ -119,6 +125,23 @@ internal actual object ExternalDownloaderPlatform {
             }.getOrDefault(false)
         } catch (_: Throwable) {
             false
+        }
+    }
+
+    private fun targetLabelFor(pkg: String?): String = when (pkg) {
+        GOPEED_PACKAGE -> "Gopeed"
+        ADM_PACKAGE -> "ADM"
+        else -> "downloader"
+    }
+
+    /** Fork: fire-and-forget diagnostic toast on the main thread. */
+    private fun forkToast(context: Context, message: String) {
+        runCatching {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                runCatching {
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }

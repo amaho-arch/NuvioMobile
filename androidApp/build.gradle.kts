@@ -63,6 +63,21 @@ android {
                 keyPassword = releaseKeyPassword
             }
         }
+        // Fork: pinned debug key so every cloud build updates over the last
+        // one instead of forcing an uninstall. Absent = stock AGP debug key.
+        getByName("debug") {
+            val debugStore = localProps.getProperty("NUVIO_DEBUG_STORE_FILE")?.takeIf { it.isNotBlank() }
+                ?.let(rootProject::file)?.takeIf { it.isFile }
+            val debugStorePassword = localProps.getProperty("NUVIO_DEBUG_STORE_PASSWORD")?.takeIf { it.isNotBlank() }
+            val debugKeyAlias = localProps.getProperty("NUVIO_DEBUG_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+            if (debugStore != null && debugStorePassword != null && debugKeyAlias != null) {
+                storeFile = debugStore
+                storePassword = debugStorePassword
+                keyAlias = debugKeyAlias
+                keyPassword = localProps.getProperty("NUVIO_DEBUG_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+                    ?: debugStorePassword
+            }
+        }
     }
 
     defaultConfig {
