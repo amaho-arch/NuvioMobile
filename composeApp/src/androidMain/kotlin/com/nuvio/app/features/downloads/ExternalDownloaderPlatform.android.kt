@@ -94,6 +94,9 @@ internal actual object ExternalDownloaderPlatform {
         val target = installedPackage()
         val viewIntent = Intent(Intent.ACTION_VIEW, uri).apply {
             addCategory(Intent.CATEGORY_DEFAULT)
+            // Fork: Gopeed's https filter requires BROWSABLE; without it the
+            // package-scoped lookup misses and we fall into a chooser.
+            addCategory(Intent.CATEGORY_BROWSABLE)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (target != null) setPackage(target)
             if (!title.isNullOrBlank()) putExtra(Intent.EXTRA_TITLE, title)
