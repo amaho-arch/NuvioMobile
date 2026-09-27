@@ -34,7 +34,10 @@ internal suspend fun transferAndroidDownload(
     val activeCall = AtomicReference<Call?>()
     val transfer = async(Dispatchers.IO) {
         try {
-            require(File(item.fileName).name == item.fileName && item.fileName.isNotBlank())
+            // Fork: fileName may be a relative sub-path (Shows/.../file.mkv).
+            // Reject absolute paths and parent escapes, allow nested segments.
+            require(item.fileName.isNotBlank() && !item.fileName.startsWith("/") &&
+                !item.fileName.split('/').any { it.isBlank() || it == "." || it == ".." })
             check(directory.isDirectory || directory.mkdirs()) { "Cannot create downloads directory" }
             val partial = File(directory, "${item.fileName}.part")
             var offset = partial.takeIf(File::isFile)?.length() ?: 0L

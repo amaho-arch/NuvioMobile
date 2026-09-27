@@ -141,6 +141,8 @@ internal class AndroidDownloadScheduler(val context: Context) {
             lock(fileName).withLock {
                 if (store.get(fileName) == null) {
                     File(directory, "$fileName.part").delete()
+                    // Fork: remove our sidecar too.
+                    File(File(directory, fileName).path + ".nuvio.json").delete()
                     DownloadSubtitleStorage(File(directory, fileName).toURI().toString()).remove()
                 }
             }
@@ -160,6 +162,9 @@ internal class AndroidDownloadScheduler(val context: Context) {
         val fileName = transfer.item.fileName
         if (!isActive(transfer)) return@withLock false
         val destination = File(directory, fileName)
+        destination.parentFile?.let { parent ->
+            check(parent.isDirectory || parent.mkdirs()) { "Cannot create download directory" }
+        }
         val client = if (network != null) {
             downloadHttpClient.newBuilder()
                 .socketFactory(network.socketFactory)
@@ -204,6 +209,9 @@ internal class AndroidDownloadScheduler(val context: Context) {
                     errorMessage = null,
                 ))
             }
+            // Fork: self-describing sidecar so Nuvio (or anything else) always
+            // knows what this file is, without a hand-written mapping.
+            runCatching { writeNuvioSidecar(destination, transfer.item) }
             false
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -258,3 +266,23 @@ internal fun shouldRetryAndroidDownload(error: Exception, retries: Int): Boolean
         is IOException -> true
         else -> false
     }
+
+/** Fork: <video>.nuvio.json next to the file — tidy metadata, machine-readable. */
+internal fun writeNuvioSidecar(videoFile: File, item: DownloadItem) {
+    val sidecar = File(videoFile.path + ".nuvio.json")
+    val json = org.json.JSONObject()
+        .put("app", "nuvio-fork")
+        .put("id", item.id)
+        .put("contentType", item.contentType)
+        .put("parentMetaId", item.parentMetaId)
+        .put("parentMetaType", item.parentMetaType)
+        .put("videoId", item.videoId)
+        .put("title", item.title)
+        .put("seasonNumber", item.seasonNumber ?: org.json.JSONObject.NULL)
+        .put("episodeNumber", item.episodeNumber ?: org.json.JSONObject.NULL)
+        .put("episodeTitle", item.episodeTitle)
+        .put("providerName", item.providerName)
+        .put("streamTitle", item.streamTitle)
+        .put("downloadedAtEpochMs", System.currentTimeMillis())
+    sidecar.writeText(json.toString(2), Charsets.UTF_8)
+}

@@ -513,6 +513,13 @@ private fun buildLogicalKey(
     "${parentMetaId.trim()}|movie"
 }
 
+/**
+ * Fork: uniform, human-friendly relative paths inside Movies/Nuvio.
+ * Episodes: Shows/<Show>/Season 01/<Show> - S01E01 - <EpTitle>_<id>.<ext>
+ * Movies:   Movies/<Title>/<Title>_<id>.<ext>
+ * Each segment is sanitized separately so separators survive. Old flat
+ * names keep resolving because lookup is by stored URI first.
+ */
 private fun buildFileName(
     title: String,
     seasonNumber: Int?,
@@ -522,34 +529,31 @@ private fun buildFileName(
     sourceUrl: String,
     downloadId: String,
 ): String {
-    val baseTitle = if (seasonNumber != null && episodeNumber != null) {
-        buildString {
-            append(title)
-            append(" S")
+    val extension = sourceUrl.fileExtensionFromUrl()
+    val show = title.sanitizePathSegment().ifBlank { fallbackTitle.sanitizePathSegment() }.take(80)
+    val suffix = "_$downloadId.$extension"
+    return if (seasonNumber != null && episodeNumber != null) {
+        val season = "Season " + seasonNumber.toString().padStart(2, '0')
+        val name = buildString {
+            append(show)
+            append(" - S")
             append(seasonNumber.toString().padStart(2, '0'))
             append('E')
             append(episodeNumber.toString().padStart(2, '0'))
             if (!episodeTitle.isNullOrBlank()) {
-                append(' ')
-                append(episodeTitle)
+                append(" - ")
+                append(episodeTitle.sanitizePathSegment().take(80))
             }
-        }
+        }.ifBlank { "download" }
+        "Shows/$show/$season/$name$suffix"
     } else {
-        title.ifBlank { fallbackTitle }
-    }
-
-    val extension = sourceUrl.fileExtensionFromUrl()
-    return buildString {
-        append(baseTitle.sanitizeFileName().ifBlank { "download" }.take(92))
-        append('_')
-        append(downloadId)
-        append('.')
-        append(extension)
+        val name = show.ifBlank { "download" }
+        "Movies/$name/$name$suffix"
     }
 }
 
-private fun String.sanitizeFileName(): String =
-    trim().replace(Regex("[^A-Za-z0-9._ -]"), "_")
+private fun String.sanitizePathSegment(): String =
+    trim().replace(Regex("[^A-Za-z0-9._ \\-()\\[\\]]"), "_").trim().trim('.', ' ')
 
 private fun String.fileExtensionFromUrl(): String {
     val withoutQuery = substringBefore('?').substringBefore('#')
