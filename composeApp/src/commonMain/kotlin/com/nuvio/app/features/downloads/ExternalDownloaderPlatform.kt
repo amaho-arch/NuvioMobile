@@ -11,6 +11,10 @@ internal expect object ExternalDownloaderPlatform {
     /** Button label, e.g. "Send to Gopeed". */
     fun targetLabel(): String
 
-    /** Returns true when the handoff intent was launched. */
-    fun sendDownloadUrl(url: String, title: String?): Boolean
+    /**
+     * Hand the URL over. [fileName] and [relativeDir] (under Movies/Nuvio)
+     * are honored when the target supports them (Gopeed scheme protocol).
+     * Returns true when the handoff intent was launched.
+     */
+    fun sendDownloadUrl(url: String, title: String?, fileName: String?, relativeDir: String?): Boolean
 }

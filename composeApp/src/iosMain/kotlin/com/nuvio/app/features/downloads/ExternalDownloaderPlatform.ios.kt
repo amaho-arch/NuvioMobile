@@ -6,5 +6,5 @@ internal actual object ExternalDownloaderPlatform {
 
     actual fun targetLabel(): String = "Send to downloader"
 
-    actual fun sendDownloadUrl(url: String, title: String?): Boolean = false
+    actual fun sendDownloadUrl(url: String, title: String?, fileName: String?, relativeDir: String?): Boolean = false
 }

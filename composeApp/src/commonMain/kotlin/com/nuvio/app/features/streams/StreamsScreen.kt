@@ -68,6 +68,7 @@ import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.downloads.ExternalDownloaderPlatform
+import com.nuvio.app.features.downloads.gopeedTarget
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -398,7 +399,17 @@ fun StreamsScreen(
                         NuvioToastController.show(noDirectStreamLinkText)
                         return
                     }
-                    val sent = ExternalDownloaderPlatform.sendDownloadUrl(url, title)
+                    // Fork: uniform name + folder so the file lands in
+                    // Movies/Nuvio even though another app downloads it.
+                    val (relativeDir, fileName) = gopeedTarget(
+                        title = title,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        episodeTitle = episodeTitle,
+                        fallbackTitle = stream.streamLabel,
+                        sourceUrl = url,
+                    )
+                    val sent = ExternalDownloaderPlatform.sendDownloadUrl(url, title, fileName, relativeDir)
                     NuvioToastController.show(if (sent) sendDownloaderSentText else sendDownloaderFailedText)
                 }
                 if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {

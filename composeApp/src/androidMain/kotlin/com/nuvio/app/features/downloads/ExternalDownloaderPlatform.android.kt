@@ -43,14 +43,54 @@ internal actual object ExternalDownloaderPlatform {
         else -> "Send to downloader"
     }
 
-    actual fun sendDownloadUrl(url: String, title: String?): Boolean {
+    actual fun sendDownloadUrl(url: String, title: String?, fileName: String?, relativeDir: String?): Boolean {
         val context = appContext ?: return false
         val trimmed = url.trim()
         if (trimmed.isBlank()) return false
-        val uri = runCatching { Uri.parse(trimmed) }.getOrNull()
-            ?.takeIf { it.scheme.equals("http", ignoreCase = true) || it.scheme.equals("https", ignoreCase = true) }
-            ?: return false
+        if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+            return false
+        }
 
+        // Fork: Gopeed scheme protocol creates the task directly with our
+        // uniform name + folder, no chooser, no manual steps.
+        // See https://gopeed.com/docs/scheme
+        if (installedPackage() == GOPEED_PACKAGE) {
+            buildGopeedCreateUri(trimmed, fileName, relativeDir)?.let { gopeedUri ->
+                val schemeIntent = Intent(Intent.ACTION_VIEW, gopeedUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    setPackage(GOPEED_PACKAGE)
+                }
+                if (runCatching {
+                        context.startActivity(schemeIntent)
+                        true
+                    }.getOrDefault(false)) return true
+            }
+        }
+        return sendGenericUrl(context, trimmed, title)
+    }
+
+    private fun buildGopeedCreateUri(url: String, fileName: String?, relativeDir: String?): Uri? {
+        return runCatching {
+            val opt = org.json.JSONObject()
+            if (!fileName.isNullOrBlank()) opt.put("name", fileName)
+            val dir = relativeDir?.trim()?.trim('/')
+            if (!dir.isNullOrBlank()) {
+                // Gopeed expects an absolute folder; ours lives under Movies.
+                opt.put("path", "/sdcard/Movies/Nuvio/$dir")
+            }
+            val payload = org.json.JSONObject()
+                .put("req", org.json.JSONObject().put("url", url))
+                .put("opt", opt)
+            val encoded = android.util.Base64.encodeToString(
+                payload.toString().toByteArray(Charsets.UTF_8),
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP,
+            )
+            Uri.parse("gopeed:///create?params=$encoded")
+        }.getOrNull()
+    }
+
+    private fun sendGenericUrl(context: Context, trimmed: String, title: String?): Boolean {
+        val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return false
         val target = installedPackage()
         val viewIntent = Intent(Intent.ACTION_VIEW, uri).apply {
             addCategory(Intent.CATEGORY_DEFAULT)

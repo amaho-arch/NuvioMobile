@@ -555,6 +555,40 @@ private fun buildFileName(
 private fun String.sanitizePathSegment(): String =
     trim().replace(Regex("[^A-Za-z0-9._ \\-()\\[\\]]"), "_").trim().trim('.', ' ')
 
+/**
+ * Fork: uniform target for external download managers: folder relative to
+ * Movies/Nuvio plus file name (no id suffix — the manager owns the file).
+ */
+internal fun gopeedTarget(
+    title: String,
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    episodeTitle: String?,
+    fallbackTitle: String,
+    sourceUrl: String,
+): Pair<String, String> {
+    val extension = sourceUrl.fileExtensionFromUrl().ifBlank { "mkv" }
+    val show = title.sanitizePathSegment().ifBlank { fallbackTitle.sanitizePathSegment() }.take(80)
+    return if (seasonNumber != null && episodeNumber != null) {
+        val season = "Season " + seasonNumber.toString().padStart(2, '0')
+        val name = buildString {
+            append(show)
+            append(" - S")
+            append(seasonNumber.toString().padStart(2, '0'))
+            append('E')
+            append(episodeNumber.toString().padStart(2, '0'))
+            if (!episodeTitle.isNullOrBlank()) {
+                append(" - ")
+                append(episodeTitle.sanitizePathSegment().take(80))
+            }
+        }.ifBlank { "download" }
+        "Shows/$show/$season" to "$name.$extension"
+    } else {
+        val name = show.ifBlank { "download" }
+        "Movies/$name" to "$name.$extension"
+    }
+}
+
 private fun String.fileExtensionFromUrl(): String {
     val withoutQuery = substringBefore('?').substringBefore('#')
     val suffix = withoutQuery.substringAfterLast('.', missingDelimiterValue = "")
