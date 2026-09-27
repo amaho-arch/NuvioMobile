@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.ConnectionPool
 
 internal class AndroidDownloadScheduler(val context: Context) {
@@ -173,7 +174,11 @@ internal class AndroidDownloadScheduler(val context: Context) {
                 .build()
         } else downloadHttpClient
         try {
-            DownloadSubtitles.prepare(transfer.item, destination.toURI().toString())
+            // Fork: subtitles are best-effort — a hanging subtitle host must
+            // never stall the video itself past this guard.
+            withTimeoutOrNull(90_000L) {
+                DownloadSubtitles.prepare(transfer.item, destination.toURI().toString())
+            }
             currentCoroutineContext().ensureActive()
             if (!isActive(transfer)) return@withLock false
             var lastProgressAt = 0L

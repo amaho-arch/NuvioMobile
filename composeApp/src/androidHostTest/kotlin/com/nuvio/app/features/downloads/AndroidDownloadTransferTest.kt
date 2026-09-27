@@ -89,6 +89,9 @@ class AndroidDownloadTransferTest {
     @Test
     fun truncatedResponseNeverBecomesCompletedFile(): Unit = runBlocking {
         MockWebServer().use { server ->
+            // Fork: first response is consumed by the range probe (no range
+            // support -> single-stream fallback), second by the download itself.
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Length", "10").setBody("0123456789"))
             server.enqueue(MockResponse().setBody("abcdefghij").setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
             val directory = temporary.newFolder()
             assertFailsWith<IOException> {
@@ -103,12 +106,15 @@ class AndroidDownloadTransferTest {
     @Test
     fun cancellationClosesBlockedSocketPromptlyAndKeepsPartialBytes(): Unit = runBlocking {
         MockWebServer().use { server ->
+            // Fork: probe response first, throttled body second (see above).
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Length", "10").setBody("0123456789"))
             server.enqueue(MockResponse().setBody("abcdefghij").throttleBody(1, 10, TimeUnit.SECONDS))
             val directory = temporary.newFolder()
             val task = async(Dispatchers.Default) {
                 transferAndroidDownload(downloadItem(server.url("/video").toString()), directory,
                     null, onHeaders = { _, _ -> }, onProgress = { _, _ -> })
             }
+            withContext(Dispatchers.IO) { server.takeRequest(5, TimeUnit.SECONDS) }
             withContext(Dispatchers.IO) { server.takeRequest(5, TimeUnit.SECONDS) }
             withTimeout(5_000) {
                 while (File(directory, "video.mkv.part").length() == 0L) delay(10)
