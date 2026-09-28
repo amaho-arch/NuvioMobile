@@ -30,14 +30,44 @@ internal fun findExternalFile(item: DownloadItem): String? {
         }
     }
 
-    val candidates = roots.flatMap { (root, depth) -> listVideoFiles(root, depth) }
+    // Fork: fuzzy scan is throttled + bounded — it must never jank composition.
+    // Exact checks above stay live; fuzzy refreshes at most once a minute.
+    val now = System.currentTimeMillis()
+    synchronized(fuzzyCache) {
+        val cached = fuzzyCache[item.fileName]
+        if (cached != null && now - cached.checkedAt < FUZZY_TTL_MS) return cached.uriOrNull
+    }
+    val found = fuzzyScan(roots, item, wanted)
+    synchronized(fuzzyCache) {
+        if (fuzzyCache.size > 200) fuzzyCache.clear()
+        fuzzyCache[item.fileName] = FuzzyEntry(now, found)
+    }
+    return found
+}
+
+private data class FuzzyEntry(val checkedAt: Long, val uriOrNull: String?)
+private const val FUZZY_TTL_MS = 60_000L
+private const val MAX_VISITED_FILES = 2000
+private val fuzzyCache = mutableMapOf<String, FuzzyEntry>()
+
+private fun fuzzyScan(
+    roots: List<Pair<File, Int>>,
+    item: DownloadItem,
+    wanted: ExternalFileIdentity,
+): String? {
+    val counter = intArrayOf(0)
+    val candidates = mutableListOf<File>()
+    for ((root, depth) in roots) {
+        collectVideoFiles(root, depth, counter, candidates)
+    }
+    val files = candidates
         .filter { it.isFile && it.length() > 0L }
         .distinctBy { it.absolutePath }
-    if (candidates.isEmpty()) return null
+    if (files.isEmpty()) return null
     val matches = if (item.isEpisode) {
-        candidates.filter { wanted.matchesEpisode(it.nameWithoutExtension) }
+        files.filter { wanted.matchesEpisode(it.nameWithoutExtension) }
     } else {
-        candidates.filter { wanted.matchesMovie(it.nameWithoutExtension) }
+        files.filter { wanted.matchesMovie(it.nameWithoutExtension) }
     }
     if (matches.size == 1) return matches.single().toURI().toString()
     return null
@@ -52,7 +82,9 @@ private fun externalSearchRoots(): List<Pair<File, Int>> {
     NuvioPublicDownloads.directory()?.let { ordered.add(it to 3) }
     ordered.add(File(externalRoot, "Download/GoPeed") to 1)
     ordered.add(File(externalRoot, "Download") to 1)
-    ordered.add(File(externalRoot, "Movies") to 2)
+    // Fork: deliberately NOT the whole Movies tree — walking the user's
+    // entire library on the UI thread caused ANRs. Manager files land in
+    // the folders above; library files were never ours to claim.
     return ordered.filter { (root, _) -> root.isDirectory }.toList()
 }
 
@@ -70,6 +102,20 @@ private fun listVideoFiles(root: File, maxDepth: Int): List<File> {
         }
     }
     return out
+}
+
+private fun collectVideoFiles(root: File, maxDepth: Int, visited: IntArray, out: MutableList<File>) {
+    if (!root.isDirectory || maxDepth < 0 || visited[0] >= MAX_VISITED_FILES) return
+    val entries = root.listFiles() ?: return
+    for (entry in entries) {
+        if (visited[0] >= MAX_VISITED_FILES) return
+        visited[0]++
+        if (entry.isFile && VIDEO_EXTENSIONS.contains(entry.extension.lowercase())) {
+            out.add(entry)
+        } else if (entry.isDirectory && maxDepth > 0) {
+            collectVideoFiles(entry, maxDepth - 1, visited, out)
+        }
+    }
 }
 
 private val TITLE_STOPWORDS = setOf("the", "and", "of", "a", "an", "with", "in", "on", "vs")
