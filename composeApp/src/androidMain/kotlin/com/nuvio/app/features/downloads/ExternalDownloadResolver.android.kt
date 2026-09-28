@@ -24,7 +24,7 @@ internal fun findExternalFile(item: DownloadItem): String? {
         File(item.fileName).name,
         item.localFileUri?.substringAfterLast('/').orEmpty(),
     ).filter { it.isNotBlank() }
-    for (root in roots) {
+    for ((root, _) in roots) {
         for (name in exactNames) {
             File(root, name).takeIf { it.isFile }?.let { return it.toURI().toString() }
         }
