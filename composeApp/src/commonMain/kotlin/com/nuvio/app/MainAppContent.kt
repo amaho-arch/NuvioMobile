@@ -101,6 +101,7 @@ import com.nuvio.app.features.collection.CollectionSyncService
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.downloads.DownloadItem
+import com.nuvio.app.features.downloads.DownloadStatus
 import com.nuvio.app.features.downloads.DownloadSubtitles
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
@@ -333,6 +334,8 @@ internal fun MainAppContent(
     val externalPlayerNotConfiguredText = stringResource(Res.string.external_player_not_configured)
     val externalPlayerUnavailableText = stringResource(Res.string.external_player_unavailable)
     val externalPlayerFailedText = stringResource(Res.string.external_player_failed)
+    // Fork: first play of an externally fetched file fetches subs in background.
+    val externalSubtitlesFetchingText = stringResource(Res.string.downloads_external_fetching_subtitles)
     val failedOpenBrowserText = stringResource(Res.string.settings_trakt_failed_open_browser)
     val cloudLibraryPlayFailedText = stringResource(Res.string.cloud_library_play_failed)
     val cloudLibraryPlayDisabledText = stringResource(Res.string.cloud_library_play_disabled)
@@ -812,13 +815,24 @@ internal fun MainAppContent(
                 ?.let(WatchProgressRepository::progressForVideo)
                 ?.takeIf { it.isResumable }
 
+            val localSubtitles = DownloadSubtitles.localSubtitles(sourceUrl)
+            // Fork: externally fetched files never went through subtitle
+            // prep — fetch in background on first play; cached afterwards.
+            if (item.status == DownloadStatus.External && localSubtitles.isEmpty()) {
+                coroutineScope.launch {
+                    runCatching {
+                        DownloadSubtitles.prepare(item, sourceUrl)
+                    }
+                }
+                NuvioToastController.show(externalSubtitlesFetchingText)
+            }
             val playerLaunch = PlayerLaunch(
                 profileId = activePlaybackProfileId,
                 title = item.title,
                 sourceUrl = sourceUrl,
                 sourceHeaders = emptyMap(),
                 sourceResponseHeaders = emptyMap(),
-                externalSubtitles = DownloadSubtitles.localSubtitles(sourceUrl),
+                externalSubtitles = localSubtitles,
                 streamType = null,
                 logo = item.logo,
                 poster = item.poster,

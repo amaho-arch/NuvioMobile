@@ -339,41 +339,9 @@ fun StreamsScreen(
                 }
             },
             onDownload = { stream ->
-                if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {
-                    downloadScope.launch {
-                        val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(
-                            stream = stream,
-                            season = seasonNumber,
-                            episode = episodeNumber,
-                        )
-                        when (resolved) {
-                            is DirectDebridPlayableResult.Success -> {
-                                val result = DownloadsRepository.enqueueFromStream(
-                                    contentType = type,
-                                    videoId = videoId,
-                                    parentMetaId = parentMetaId,
-                                    parentMetaType = parentMetaType,
-                                    title = title,
-                                    logo = logo,
-                                    poster = poster,
-                                    background = background,
-                                    seasonNumber = seasonNumber,
-                                    episodeNumber = episodeNumber,
-                                    episodeTitle = episodeTitle,
-                                    episodeThumbnail = episodeThumbnail,
-                                    stream = resolved.stream,
-                                )
-                                NuvioToastController.show(result.toastMessage())
-                            }
-                            else -> {
-                                val message = resolved.toastMessage()
-                                if (message != null) {
-                                    NuvioToastController.show(message)
-                                }
-                            }
-                        }
-                    }
-                } else {
+                // Fork: Gopeed-first. The built-in engine stays as fallback
+                // when no download manager is installed or handoff fails.
+                fun downloadBuiltIn(resolved: StreamItem) {
                     val result = DownloadsRepository.enqueueFromStream(
                         contentType = type,
                         videoId = videoId,
@@ -387,9 +355,72 @@ fun StreamsScreen(
                         episodeNumber = episodeNumber,
                         episodeTitle = episodeTitle,
                         episodeThumbnail = episodeThumbnail,
-                        stream = stream,
+                        stream = resolved,
                     )
                     NuvioToastController.show(result.toastMessage())
+                }
+                fun downloadViaExternal(resolvedUrl: String?, resolved: StreamItem): Boolean {
+                    if (resolvedUrl.isNullOrBlank()) {
+                        NuvioToastController.show(noDirectStreamLinkText)
+                        return true
+                    }
+                    val (relativeDir, fileName) = gopeedTarget(
+                        title = title,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        episodeTitle = episodeTitle,
+                        fallbackTitle = resolved.streamLabel,
+                        sourceUrl = resolvedUrl,
+                    )
+                    val sent = ExternalDownloaderPlatform.sendDownloadUrl(resolvedUrl, title, fileName, relativeDir)
+                    if (sent) {
+                        DownloadsRepository.trackExternalDownload(
+                            contentType = type,
+                            videoId = videoId,
+                            parentMetaId = parentMetaId,
+                            parentMetaType = parentMetaType,
+                            title = title,
+                            logo = logo,
+                            poster = poster,
+                            background = background,
+                            seasonNumber = seasonNumber,
+                            episodeNumber = episodeNumber,
+                            episodeTitle = episodeTitle,
+                            episodeThumbnail = episodeThumbnail,
+                            streamTitle = resolved.streamLabel,
+                            providerName = resolved.addonName,
+                            sourceUrl = resolvedUrl,
+                        )
+                        NuvioToastController.show(sendDownloaderSentText)
+                        return true
+                    }
+                    return false
+                }
+                if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {
+                    downloadScope.launch {
+                        val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(
+                            stream = stream,
+                            season = seasonNumber,
+                            episode = episodeNumber,
+                        )
+                        when (resolved) {
+                            is DirectDebridPlayableResult.Success -> {
+                                if (!downloadViaExternal(resolved.stream.playableDirectUrl, resolved.stream)) {
+                                    downloadBuiltIn(resolved.stream)
+                                }
+                            }
+                            else -> {
+                                val message = resolved.toastMessage()
+                                if (message != null) {
+                                    NuvioToastController.show(message)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (!downloadViaExternal(stream.playableDirectUrl ?: stream.externalOpenUrl, stream)) {
+                        downloadBuiltIn(stream)
+                    }
                 }
             },
             // Fork: hand the (possibly debrid-resolved) URL to Gopeed/ADM.

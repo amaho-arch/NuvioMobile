@@ -638,6 +638,7 @@
     <!-- Fork: external download-manager entries -->
     <string name="downloads_status_external_ready">Ready to play</string>
     <string name="downloads_status_external_waiting">Waiting in downloader</string>
+    <string name="downloads_external_fetching_subtitles">Fetching subtitles in the background…</string>
     <string name="downloads_status_paused">Paused • %1$s</string>
     <string name="episodes_cd_watched">Watched</string>
     <string name="episodes_season">Season %1$d</string>
