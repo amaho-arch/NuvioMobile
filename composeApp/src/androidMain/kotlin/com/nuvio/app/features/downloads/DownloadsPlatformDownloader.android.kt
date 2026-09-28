@@ -83,6 +83,8 @@ internal actual object DownloadsPlatformDownloader {
         return true
     }
 
+    actual fun resolveExternalFile(item: DownloadItem): String? = findExternalFile(item)
+
     actual fun resolveLocalFileUri(localFileUri: String?, destinationFileName: String): String? {
         localFileUri
             ?.toLocalFileOrNull()

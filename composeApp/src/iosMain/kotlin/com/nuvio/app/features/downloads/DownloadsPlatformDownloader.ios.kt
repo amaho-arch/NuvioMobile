@@ -188,6 +188,10 @@ internal actual object DownloadsPlatformDownloader {
         }
     }
 
+    // Fork: identity scan is Android-only; external stubs don't exist on iOS.
+    actual fun resolveExternalFile(item: DownloadItem): String? =
+        resolveLocalFileUri(item.localFileUri, item.fileName)
+
     actual fun openDownloadsDirectory(): Boolean {
         val url = NSURL.fileURLWithPath(downloadsDirectoryPath())
         UIApplication.sharedApplication.openURL(

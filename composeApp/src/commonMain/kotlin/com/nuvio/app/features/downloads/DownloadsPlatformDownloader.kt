@@ -29,5 +29,12 @@ internal expect object DownloadsPlatformDownloader {
 
     fun resolveLocalFileUri(localFileUri: String?, destinationFileName: String): String?
 
+    /**
+     * Fork: resolve a tracked external-manager stub. Beyond the standard
+     * lookups this may match link-named or scene-named files by episode
+     * identity (Android only; iOS falls back to the standard lookup).
+     */
+    fun resolveExternalFile(item: DownloadItem): String?
+
     fun openDownloadsDirectory(): Boolean
 }

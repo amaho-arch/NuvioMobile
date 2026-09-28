@@ -88,10 +88,15 @@ object DownloadsRepository {
     fun playableLocalFileUri(item: DownloadItem): String? {
         ensureLoaded()
         if (item.status != DownloadStatus.Completed && item.status != DownloadStatus.External) return null
-        val resolvedUri = DownloadsPlatformDownloader.resolveLocalFileUri(
-            localFileUri = item.localFileUri,
-            destinationFileName = item.fileName,
-        ) ?: return null
+        val resolvedUri = if (item.status == DownloadStatus.External) {
+            // Fork: identity scan for manager-fetched files.
+            DownloadsPlatformDownloader.resolveExternalFile(item)
+        } else {
+            DownloadsPlatformDownloader.resolveLocalFileUri(
+                localFileUri = item.localFileUri,
+                destinationFileName = item.fileName,
+            )
+        } ?: return null
 
         if (resolvedUri != item.localFileUri) {
             mutateItem(item.id) { current ->
@@ -513,10 +518,15 @@ object DownloadsRepository {
 
     private fun normalizeCompletedLocalFileUri(item: DownloadItem): DownloadItem {
         if (item.status != DownloadStatus.Completed && item.status != DownloadStatus.External) return item
-        val resolvedUri = DownloadsPlatformDownloader.resolveLocalFileUri(
-            localFileUri = item.localFileUri,
-            destinationFileName = item.fileName,
-        ) ?: return item
+        val resolvedUri = if (item.status == DownloadStatus.External) {
+            // Fork: identity scan for manager-fetched files.
+            DownloadsPlatformDownloader.resolveExternalFile(item)
+        } else {
+            DownloadsPlatformDownloader.resolveLocalFileUri(
+                localFileUri = item.localFileUri,
+                destinationFileName = item.fileName,
+            )
+        } ?: return item
         return if (resolvedUri != item.localFileUri) {
             item.copy(localFileUri = resolvedUri)
         } else {
@@ -524,12 +534,17 @@ object DownloadsRepository {
         }
     }
 
-    internal fun DownloadItem.hasPlayableLocalFile(): Boolean =
-        (status == DownloadStatus.Completed || status == DownloadStatus.External) &&
-            DownloadsPlatformDownloader.resolveLocalFileUri(
-                localFileUri = localFileUri,
-                destinationFileName = fileName,
-            ) != null
+    internal fun DownloadItem.hasPlayableLocalFile(): Boolean {
+        if (status != DownloadStatus.Completed && status != DownloadStatus.External) return false
+        // Fork: identity scan for manager-fetched files.
+        if (status == DownloadStatus.External) {
+            return DownloadsPlatformDownloader.resolveExternalFile(this) != null
+        }
+        return DownloadsPlatformDownloader.resolveLocalFileUri(
+            localFileUri = localFileUri,
+            destinationFileName = fileName,
+        ) != null
+    }
 }
 
 @Serializable
