@@ -214,6 +214,10 @@ object DownloadsRepository {
      * never touches the built-in engine; it becomes playable the moment the
      * expected file appears (see [hasPlayableLocalFile]). Nothing on disk is
      * ever deleted or moved by this call.
+     *
+     * The expected name is derived from the URL tail because managers
+     * without scheme support (Gopeed 1.9.x) save link-named files into
+     * their own default folder — which the user points at Movies/Nuvio.
      */
     fun trackExternalDownload(
         contentType: String,
@@ -231,8 +235,6 @@ object DownloadsRepository {
         streamTitle: String,
         providerName: String,
         sourceUrl: String,
-        relativeDir: String,
-        fileName: String,
     ) {
         ensureLoaded()
         val now = DownloadsClock.nowEpochMs()
@@ -247,8 +249,15 @@ object DownloadsRepository {
         currentItems.removeAll {
             it.logicalContentKey == logicalKey && it.status == DownloadStatus.External
         }
-        val cleanDir = relativeDir.trim().trim('/')
-        val cleanName = fileName.trim().trim('/')
+        val cleanDir = ""
+        val cleanName = sourceUrl
+            .substringBefore('?')
+            .substringBefore('#')
+            .substringAfterLast('/')
+            .sanitizePathSegment()
+            .take(120)
+            .ifBlank { "download_${nextDownloadId(now)}" }
+            .let { if ('.' in it) it else "$it.mkv" }
         val item = DownloadItem(
             id = nextDownloadId(now),
             contentType = contentType,

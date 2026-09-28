@@ -206,6 +206,12 @@ internal class AndroidDownloadScheduler(val context: Context) {
                     throw IOException("Could not finalize the downloaded file")
                 }
                 val bytes = destination.length()
+                // Fork: a 0-byte "success" is never a real file (unknown
+                // totals skip the size check in the transfer layer).
+                if (bytes <= 0L) {
+                    destination.delete()
+                    throw IOException("Download completed with an empty file")
+                }
                 current.copy(item = current.item.copy(
                     status = DownloadStatus.Completed,
                     localFileUri = destination.toURI().toString(),

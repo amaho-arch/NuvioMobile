@@ -429,8 +429,6 @@ fun StreamsScreen(
                             streamTitle = stream.streamLabel,
                             providerName = stream.addonName,
                             sourceUrl = url,
-                            relativeDir = relativeDir,
-                            fileName = fileName,
                         )
                     }
                     NuvioToastController.show(if (sent) sendDownloaderSentText else sendDownloaderFailedText)

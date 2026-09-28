@@ -18,7 +18,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 internal val downloadHttpClient = OkHttpClient.Builder()
-    .connectTimeout(60, TimeUnit.SECONDS)
+    // Fork: fail fast on connect (airplane mode, dead host) so errors
+    // surface in seconds; slow-but-alive hosts still get generous reads.
+    .connectTimeout(15, TimeUnit.SECONDS)
     .readTimeout(60, TimeUnit.SECONDS)
     .writeTimeout(60, TimeUnit.SECONDS)
     .followRedirects(true)
