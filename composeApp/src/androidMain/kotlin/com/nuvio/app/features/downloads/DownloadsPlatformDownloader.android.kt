@@ -101,6 +101,18 @@ internal actual object DownloadsPlatformDownloader {
         NuvioPublicDownloads.directory()?.let { publicDir ->
             File(publicDir, fileName).takeIf { it.exists() }?.toURI()?.toString()?.let { return it }
         }
+        // Fork: download-manager apps (Gopeed) keep their own folder and
+        // forget custom paths — match by bare file name in their known
+        // locations so handed-off files still resolve.
+        val baseName = File(fileName).name.takeIf { it.isNotBlank() && it != "." && it != ".." }
+        if (baseName != null) {
+            val externalRoot = android.os.Environment.getExternalStorageDirectory()
+            listOf("Download/GoPeed", "Download", "Movies").forEach { relative ->
+                File(externalRoot, "$relative/$baseName")
+                    .takeIf { it.isFile }
+                    ?.toURI()?.toString()?.let { return it }
+            }
+        }
         val downloadsDir = File(context.filesDir, "downloads")
         val localFile = File(downloadsDir, fileName)
         return localFile.takeIf { it.exists() }?.toURI()?.toString()
