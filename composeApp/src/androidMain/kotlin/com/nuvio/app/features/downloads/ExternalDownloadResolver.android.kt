@@ -12,7 +12,7 @@ import java.io.File
  * Ambiguity (several candidates) resolves to null — Waiting, not wrong.
  */
 internal fun findExternalFile(item: DownloadItem): String? {
-    resolveLocalFileUri(item.localFileUri, item.fileName)?.let { return it }
+    DownloadsPlatformDownloader.resolveLocalFileUri(item.localFileUri, item.fileName)?.let { return it }
 
     val roots = externalSearchRoots()
     if (roots.isEmpty()) return null
