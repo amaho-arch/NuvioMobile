@@ -92,6 +92,23 @@ internal actual object ExternalDownloaderPlatform {
     private fun sendGenericUrl(context: Context, trimmed: String, title: String?): Boolean {
         val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return false
         val target = installedPackage()
+        // Fork: Gopeed 1.9.3 crashes its task screen on bare VIEW intents
+        // (LateInitializationError: _client not initialized). Its documented
+        // share flow (SEND text) takes the working path — try it first.
+        if (target != null) {
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, trimmed)
+                if (!title.isNullOrBlank()) putExtra(Intent.EXTRA_SUBJECT, title)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                setPackage(target)
+            }
+            forkToast(context, "Sharing link with ${targetLabelFor(target)}…")
+            if (runCatching {
+                    context.startActivity(sendIntent)
+                    true
+                }.getOrDefault(false)) return true
+        }
         // Fork: Gopeed's https filter declares a MIME type, so the intent
         // must carry one too or package-scoped resolution misses.
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
